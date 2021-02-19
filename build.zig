@@ -14,6 +14,11 @@ pub fn build(b: *Builder) void {
     const exe = b.addExecutable("handy-unicode", "src/main.zig");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.addIncludeDir("sqlite-c/");
+    exe.addLibPath("sqlite-c/");
+    exe.linkLibC();
+    exe.linkSystemLibrary("sqlite3");
+    exe.addPackagePath("sqlite", "sqlite-zig/src/sqlite.zig");
     exe.install();
 
     const run_cmd = exe.run();
