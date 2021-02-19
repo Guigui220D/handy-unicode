@@ -1,0 +1,3 @@
+[submodule "sqlite-zig"]
+	path = sqlite-zig
+	url = git@github.com:Guigui220D/sqlite-zig.git
