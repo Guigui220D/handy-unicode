@@ -27,7 +27,7 @@ pub fn main() anyerror!void {
     }
 
     //Test
-    var rows = db.exec("SELECT codepoint, comment FROM unicode WHERE id < 10;");
+    var rows = db.exec("SELECT codepoint, comment FROM unicode WHERE id < 500 AND id > 480;");
 
     while (rows.next()) |row_item| {
         const row = switch (row_item) {
@@ -40,10 +40,10 @@ pub fn main() anyerror!void {
             },
         };
 
-        const id = row.columnInt(0);
-        const username = row.columnText(1);
+        const codepoint = row.columnText(0);
+        const comment = row.columnText(1);
 
-        std.debug.warn(" {}\t{s}\n", .{ id, username });
+        std.debug.warn("{s}: {s}\n", .{ comment, codepoint });
     }
 }
 
@@ -57,14 +57,25 @@ fn parseFileAndCreateDb(file: std.fs.File, database: sqlite.SQLite) !void {
     var reader = file.reader();
 
     var buffer: [1024]u8 = undefined;
-    
-    _ = database.exec(
-        \\ CREATE TABLE unicode(
-        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
-        \\  codepoint TEXT NOT NULL,
-        \\  comment TEXT NOT NULL
-        \\ );
-    );
+    {
+        var ans = database.exec(
+            \\ DROP TABLE IF EXISTS unicode;
+            \\ CREATE TABLE unicode(
+            \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+            \\  codepoint TEXT NOT NULL,
+            \\  comment TEXT NOT NULL
+            \\ );
+        );
+        while (ans.next()) |row_item| {
+            switch (row_item) {
+                .Error => |e| {
+                    std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
+                    return e;
+                },
+                else => continue,
+            }
+        }
+    }
 
     //Read all lines
     while (try reader.readUntilDelimiterOrEof(buffer[0..], '\n')) |line| {
@@ -78,9 +89,10 @@ fn parseFileAndCreateDb(file: std.fs.File, database: sqlite.SQLite) !void {
         var codepoint = std.mem.tokenize(data, ";").next() orelse return error.IllFormedCodeFile;
         
         var buf2: [1024]u8 = undefined;
-        var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO unicode(codepoint, comment) VALUES ('{s}', '{s}');{c}", .{codepoint, comment, 0});
+        var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO unicode(codepoint, comment) VALUES ('{s}', '{s}');", .{codepoint, comment});
+        buf2[request.len] = 0;
 
-        var ans = database.exec(request[0.. :0]);
+        var ans = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, request.ptr)));
         while (ans.next()) |row_item| {
             switch (row_item) {
                 .Error => |e| {
