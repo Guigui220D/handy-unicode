@@ -10,7 +10,7 @@ pub fn createDb() !void {
         \\     id INTEGER PRIMARY KEY AUTOINCREMENT,
         \\     codepoint INTEGER NOT NULL,
         \\     name TEXT NOT NULL,
-        \\     utf8 TEXT NOT NULL
+        \\     utf8 BLOB NOT NULL
         \\     user_notes TEXT
         \\     standard_notes TEXT
         \\ );
@@ -41,6 +41,12 @@ fn parseFileAndFillDb(file: std.fs.File, database: sqlite.SQLite) !void {
         const name = parts.rest();
 
         var codepoint = std.mem.tokenize(data, ";").next() orelse return error.IllFormedCodeFile;
+        var utf8: [32]u8 = undefined;
+        var codepoint_iterator = std.mem.tokenize(codepoint, ' ');
+        var i: usize = 0;
+        while (codepoint_iterator.next()) |code| {
+            i += std.fmt.unicode.utf8Encode(std.fmt.parseInt(code), utf8[i..]);
+        }
         
         var buf2: [1024]u8 = undefined;
         var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO unicode(codepoint, name) VALUES ('{s}', '{s}');", .{codepoint, name});
