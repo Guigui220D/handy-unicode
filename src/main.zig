@@ -2,6 +2,8 @@ const std = @import("std");
 const db = @import("db.zig");
 
 pub fn main() anyerror!void {
+    try enableUtf8OnTerminal();
+
     const cwd = std.fs.cwd(); //Current directory folder
     const stderr = std.io.getStdErr().writer();
 
@@ -23,3 +25,11 @@ pub fn main() anyerror!void {
     //Test
     try db.testing.printSome();
 }
+
+fn enableUtf8OnTerminal() !void {
+    if (system("chcp 65001") != 0)
+        std.debug.print("Could not set terminal to utf8, make sure it can print all characters.\n", .{});
+}
+
+pub extern "c" fn system([*:0]const u8) c_int;
+

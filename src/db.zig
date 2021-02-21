@@ -27,7 +27,8 @@ pub fn createTable() !void {
         \\     name TEXT NOT NULL,
         \\     utf8 BLOB NOT NULL,
         \\     user_notes TEXT,
-        \\     standard_notes TEXT
+        \\     standard_notes TEXT,
+        \\     times_used INTEGER DEFAULT 0
         \\ );
     );
     while (ans.next()) |row_item| {
@@ -63,7 +64,7 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
         while (codepoint_iterator.next()) |code|
             i += try std.unicode.utf8Encode(try std.fmt.parseInt(u21, code, 16), utf8[i..]);
 
-        std.debug.print("{s}\n", .{utf8[0..i]});
+        //std.debug.print("{s}\n", .{utf8[0..i]});
         var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO chars(utf8, name) VALUES (X'{x}', '{s}');", .{utf8[0..i], name});
         buf2[request.len] = 0;
 
@@ -88,7 +89,7 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
 
 pub const testing = struct {    //Namespace for testing functions
     pub fn printSome() !void {
-        var rows = database.exec("SELECT utf8, name FROM chars;");
+        var rows = database.exec("SELECT utf8, name FROM chars WHERE name LIKE '%ALCHEMICAL%' ORDER BY times_used LIMIT 10;");
 
         while (rows.next()) |row_item| {
             const row = switch (row_item) {
