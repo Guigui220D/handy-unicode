@@ -82,17 +82,48 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
     }
 }
 
+var query: ?[]const u8 = null;
+var page: usize = 0;
 var search: ?[]const u8 = null;
 
-pub fn prepareSearch(allocator: *std.mem.Allocator, args: []u8) !void {
+pub fn setSearch(allocator: *std.mem.Allocator, word: []u8) !void {
     deallocSearch(allocator);
+    page = 0;
+    search = try allocator.dupe(u8, word);
+}
+
+pub fn nextPage() void {
+    page += 1;
+}
+
+fn prepareQuery(allocator: *std.mem.Allocator) !void {
+    const stderr = std.io.getStdErr().writer();
+
+    if (search == null)
+        return error.noSearch;
+
+    deallocQuery(allocator);
     //TODO: this is just a prototype
-    var temp = try allocator.alloc(u8, std.mem.replacementSize(u8, args, "\x0D", ""));
+    var temp = try allocator.alloc(u8, std.mem.replacementSize(u8, search.?, "\x0D", ""));
     defer allocator.free(temp);
 
-    _ = std.mem.replace(u8, args, "\x0D", "", temp);
+    _ = std.mem.replace(u8, search.?, "\x0D", "", temp);
 
-    search = try std.fmt.allocPrint(allocator, "SELECT utf8, name, times_used FROM chars WHERE name LIKE '%{s}%' ORDER BY times_used LIMIT 10;{c}", .{ temp, 0 });
+    query = try std.fmt.allocPrint(allocator, 
+        \\SELECT utf8, name, times_used, id
+        \\FROM chars 
+        \\WHERE name LIKE '%{s}%' 
+        \\ORDER BY times_used DESC
+        \\LIMIT 8
+        \\OFFSET {}
+        \\{c}
+        , .{ temp, page * 8, 0 });
+}
+
+pub fn deallocQuery(allocator: *std.mem.Allocator) void {
+    if (query) |s|
+        allocator.free(s);
+    query = null;
 }
 
 pub fn deallocSearch(allocator: *std.mem.Allocator) void {
@@ -101,14 +132,12 @@ pub fn deallocSearch(allocator: *std.mem.Allocator) void {
     search = null;
 }
 
-pub fn runSearch() !void {
-    std.debug.print("search: {s}\n", .{search});
-    var rows = if (search) |s|
-        database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, s.ptr)))
-    else
-        database.exec("SELECT utf8, name, times_used FROM chars ORDER BY times_used LIMIT 10;");
+pub fn runQuery(allocator: *std.mem.Allocator) !void {
+    try prepareQuery(allocator);
+    //std.debug.print("query: {s}\n", .{query});
+    var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, query.?.ptr)));
 
-    var selector: usize = 0;
+    var selector: usize = 1;
     while (rows.next()) |row_item| : (selector += 1) {
         const row = switch (row_item) {
             // Ignore when statements are completed
@@ -138,6 +167,52 @@ pub fn runSearch() !void {
             }
         }
     }
+
+    if (selector == 2) {
+        std.debug.warn("No more results!\n", .{});
+        page = 0;
+    }
+}
+
+pub fn select(index: u3) !void {
+    if (query) |q| {
+        var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, q.ptr)));
+
+        var selector: usize = 0;
+        while (rows.next()) |row_item| : (selector += 1) {
+            const row = switch (row_item) {
+                // Ignore when statements are completed
+                .Done => continue,
+                .Row => |r| r,
+                .Error => |e| {
+                    std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
+                    return e;
+                },
+            };
+
+            const utf8 = row.columnText(0);
+            const id = row.columnInt(3);
+
+            if (selector == @intCast(usize, index)) {
+                std.debug.warn("'{s}' copied to clipboard! (actually, this is not implemented)\n", .{utf8});
+                var ans = try database.execBind("UPDATE chars SET times_used = times_used + 1 WHERE id == ?;", .{id});
+                while (ans.next()) |t| {
+                    switch (t) {
+                        .Error => |e| {
+                            std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
+                            return e;
+                        },
+                        else => continue,
+                    }
+                }
+                return;
+            }
+        }
+        return error.doesNotExist;
+    } else
+        return error.noQuery;
+
+    
 }
 
 pub const testing = struct { //Namespace for testing functions

@@ -35,10 +35,34 @@ pub fn main() anyerror!void {
     var buffer: [1024]u8 = undefined;
 
     while (try prompt(buffer[0..])) |line| {
-        try db.prepareSearch(allocator, line);
-        try db.runSearch();
+        if (line.len != 0) {
+            switch (line[0]) {
+                ':' => {
+                    try db.setSearch(allocator, line[1..]);
+                    try db.runQuery(allocator);
+                },
+                '>' => {
+                    db.nextPage();
+                    db.runQuery(allocator) catch |err| {
+                        if (err == error.noSearch)
+                            try stderr.writeAll("No search was started!\n");
+                    };
+                },
+                '1'...'8' => {
+                    var index: u3 = @truncate(u3, line[0] - '1');
+                    db.select(index) catch |err| switch (err) {
+                        error.doesNotExist => try stderr.print("Last search does not have a result with index {c}\n", .{ line[0] }),
+                        error.noQuery => try stderr.print("You need to first search something\n", .{}),
+                        else => return err
+                    };
+                },
+                'q' => break,
+                else => try stderr.print("Get some help lol\n", .{})
+            }
+        }
     }
 
+    db.deallocQuery(allocator);
     db.deallocSearch(allocator);
 
     try stdout.writeAll("\nBye bye!\n");
