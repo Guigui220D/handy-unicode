@@ -6,7 +6,7 @@ var database: sqlite.SQLite = undefined;
 
 pub fn checkDbExists() !bool {
     //Checks if program has access to the db file/if it exists
-    if (std.fs.cwd().access(db_file_name, .{.read = true, .write = true})) {
+    if (std.fs.cwd().access(db_file_name, .{ .read = true, .write = true })) {
         return true;
     } else |err|
         return if (err == error.FileNotFound) false else err;
@@ -65,7 +65,7 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
             i += try std.unicode.utf8Encode(try std.fmt.parseInt(u21, code, 16), utf8[i..]);
 
         //std.debug.print("{s}\n", .{utf8[0..i]});
-        var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO chars(utf8, name) VALUES (X'{x}', '{s}');", .{utf8[0..i], name});
+        var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO chars(utf8, name) VALUES (X'{x}', '{s}');", .{ utf8[0..i], name });
         buf2[request.len] = 0;
 
         var ans = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, request.ptr)));
@@ -82,14 +82,67 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
     }
 }
 
+var search: ?[]const u8 = null;
 
+pub fn prepareSearch(allocator: *std.mem.Allocator, args: []u8) !void {
+    deallocSearch(allocator);
+    //TODO: this is just a prototype
+    var temp = try allocator.alloc(u8, std.mem.replacementSize(u8, args, "\x0D", ""));
+    defer allocator.free(temp);
 
+    _ = std.mem.replace(u8, args, "\x0D", "", temp);
 
+    search = try std.fmt.allocPrint(allocator, "SELECT utf8, name, times_used FROM chars WHERE name LIKE '%{s}%' ORDER BY times_used LIMIT 10;{c}", .{ temp, 0 });
+}
 
+pub fn deallocSearch(allocator: *std.mem.Allocator) void {
+    if (search) |s|
+        allocator.free(s);
+    search = null;
+}
 
-pub const testing = struct {    //Namespace for testing functions
+pub fn runSearch() !void {
+    std.debug.print("search: {s}\n", .{search});
+    var rows = if (search) |s|
+        database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, s.ptr)))
+    else
+        database.exec("SELECT utf8, name, times_used FROM chars ORDER BY times_used LIMIT 10;");
+
+    var selector: usize = 0;
+    while (rows.next()) |row_item| : (selector += 1) {
+        const row = switch (row_item) {
+            // Ignore when statements are completed
+            .Done => continue,
+            .Row => |r| r,
+            .Error => |e| {
+                std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
+                return e;
+            },
+        };
+
+        const utf8 = row.columnText(0);
+        const name = row.columnText(1);
+        const used = row.columnInt(2);
+
+        if (utf8.len == 1 and std.ascii.isCntrl(utf8[0])) {
+            if (used != 0) {
+                std.debug.warn("{} - [cntrl]: {s} (used {} times)\n", .{ selector, name, used });
+            } else {
+                std.debug.warn("{} - [cntrl]: {s} (never used)\n", .{ selector, name });
+            }
+        } else {
+            if (used != 0) {
+                std.debug.warn("{} - {s}: {s} (used {} times)\n", .{ selector, utf8, name, used });
+            } else {
+                std.debug.warn("{} - {s}: {s} (never used)\n", .{ selector, utf8, name });
+            }
+        }
+    }
+}
+
+pub const testing = struct { //Namespace for testing functions
     pub fn printSome() !void {
-        var rows = database.exec("SELECT utf8, name FROM chars WHERE name LIKE '%ALCHEMICAL%' ORDER BY times_used LIMIT 10;");
+        var rows = database.exec("SELECT utf8, name FROM chars WHERE name LIKE '%SYMBOL FOR%' ORDER BY times_used;");
 
         while (rows.next()) |row_item| {
             const row = switch (row_item) {
@@ -102,10 +155,10 @@ pub const testing = struct {    //Namespace for testing functions
                 },
             };
 
-            const codepoint = row.columnText(0);
+            const utf8 = row.columnText(0);
             const name = row.columnText(1);
 
-            std.debug.warn("{s}: {s}\n", .{ name, codepoint });
+            std.debug.warn("{s}: {s} ({x})\n", .{ name, utf8, utf8 });
         }
     }
 };
