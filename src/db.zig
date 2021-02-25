@@ -179,8 +179,11 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
     result_count = selector;
 
     if (selector == 0) {
-        std.debug.warn("No more results!\n", .{});
-        page = 0;
+        if (page != 0) {
+            std.debug.warn("Nothing found.\n", .{});
+            page = 0;
+        } else
+            std.debug.warn("No more results!\n", .{});
     }
 }
 
