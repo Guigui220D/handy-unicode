@@ -171,6 +171,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
             }
         }
 
+        std.debug.assert(selector < 8);
         result_ids[selector] = id;
 
         selector += 1;
@@ -180,10 +181,10 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
 
     if (selector == 0) {
         if (page != 0) {
-            std.debug.warn("Nothing found.\n", .{});
+            std.debug.warn("No more results!\n", .{});
             page = 0;
         } else
-            std.debug.warn("No more results!\n", .{});
+            std.debug.warn("Nothing found.\n", .{});
     }
 }
 
