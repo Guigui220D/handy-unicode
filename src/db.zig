@@ -168,7 +168,9 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         }
     }
 
-    if (selector == 2) {
+    if (selector == 2 and page == 0) {
+        std.debug.warn("Nothing found.\n", .{});
+    } else if (selector == 2) {
         std.debug.warn("No more results!\n", .{});
         page = 0;
     }
