@@ -52,7 +52,6 @@ pub fn main() anyerror!void {
                     var index: u3 = @truncate(u3, line[0] - '1');
                     db.select(index) catch |err| switch (err) {
                         error.doesNotExist => try stderr.print("Last search does not have a result with index {c}\n", .{ line[0] }),
-                        error.noQuery => try stderr.print("You need to first search something\n", .{}),
                         else => return err
                     };
                 },

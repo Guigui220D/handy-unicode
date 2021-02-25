@@ -86,6 +86,9 @@ var query: ?[]const u8 = null;
 var page: usize = 0;
 var search: ?[]const u8 = null;
 
+var result_ids: [8]c_int = undefined;
+var result_count: usize = 0;
+
 pub fn setSearch(allocator: *std.mem.Allocator, word: []u8) !void {
     deallocSearch(allocator);
     page = 0;
@@ -137,8 +140,8 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
     //std.debug.print("query: {s}\n", .{query});
     var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, query.?.ptr)));
 
-    var selector: usize = 1;
-    while (rows.next()) |row_item| : (selector += 1) {
+    var selector: usize = 0;
+    while (rows.next()) |row_item| {
         const row = switch (row_item) {
             // Ignore when statements are completed
             .Done => continue,
@@ -152,88 +155,64 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         const utf8 = row.columnText(0);
         const name = row.columnText(1);
         const used = row.columnInt(2);
+        const id = row.columnInt(3);
 
         if (utf8.len == 1 and std.ascii.isCntrl(utf8[0])) {
             if (used != 0) {
-                std.debug.warn("{} - [cntrl]: {s} (used {} times)\n", .{ selector, name, used });
+                std.debug.warn("{} - [cntrl]: {s} (used {} times)\n", .{ selector + 1, name, used });
             } else {
-                std.debug.warn("{} - [cntrl]: {s} (never used)\n", .{ selector, name });
+                std.debug.warn("{} - [cntrl]: {s} (never used)\n", .{ selector + 1, name });
             }
         } else {
             if (used != 0) {
-                std.debug.warn("{} - {s}: {s} (used {} times)\n", .{ selector, utf8, name, used });
+                std.debug.warn("{} - {s}: {s} (used {} times)\n", .{ selector + 1, utf8, name, used });
             } else {
-                std.debug.warn("{} - {s}: {s} (never used)\n", .{ selector, utf8, name });
+                std.debug.warn("{} - {s}: {s} (never used)\n", .{ selector + 1, utf8, name });
             }
         }
+
+        result_ids[selector] = id;
+
+        selector += 1;
     }
 
-    if (selector == 2) {
+    result_count = selector;
+
+    if (selector == 0) {
         std.debug.warn("No more results!\n", .{});
         page = 0;
     }
 }
 
 pub fn select(index: u3) !void {
-    if (query) |q| {
-        var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, q.ptr)));
-
-        var selector: usize = 0;
-        while (rows.next()) |row_item| : (selector += 1) {
-            const row = switch (row_item) {
-                // Ignore when statements are completed
-                .Done => continue,
-                .Row => |r| r,
+    if (index < result_count) {
+        const id = result_ids[index];
+        var found = false;
+        var ans = try database.execBind("UPDATE chars SET times_used = times_used + 1 WHERE id == ?;", .{id});
+        while (ans.next()) |t| {
+            const row = switch (t) {
                 .Error => |e| {
                     std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
                     return e;
                 },
+                else => continue,
+            };
+        }
+        ans = try database.execBind("SELECT utf8 FROM chars WHERE id == ?;", .{id});
+        while (ans.next()) |t| {
+            const row = switch (t) {
+                .Error => |e| {
+                    std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
+                    return e;
+                },
+                .Row => |r| r,
+                .Done => continue,
             };
 
-            const utf8 = row.columnText(0);
-            const id = row.columnInt(3);
-
-            if (selector == @intCast(usize, index)) {
-                std.debug.warn("'{s}' copied to clipboard! (actually, this is not implemented)\n", .{utf8});
-                var ans = try database.execBind("UPDATE chars SET times_used = times_used + 1 WHERE id == ?;", .{id});
-                while (ans.next()) |t| {
-                    switch (t) {
-                        .Error => |e| {
-                            std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
-                            return e;
-                        },
-                        else => continue,
-                    }
-                }
-                return;
-            }
+            std.debug.assert(!found);
+            found = true;
+            std.debug.warn("'{s}' copied to clipboard! (actually, this is not implemented)\n", .{row.columnText(0)});
         }
-        return error.doesNotExist;
-    } else
-        return error.noQuery;
-
-    
+        return;
+    } else return error.doesNotExist;
 }
-
-pub const testing = struct { //Namespace for testing functions
-    pub fn printSome() !void {
-        var rows = database.exec("SELECT utf8, name FROM chars WHERE name LIKE '%SYMBOL FOR%' ORDER BY times_used;");
-
-        while (rows.next()) |row_item| {
-            const row = switch (row_item) {
-                // Ignore when statements are completed
-                .Done => continue,
-                .Row => |r| r,
-                .Error => |e| {
-                    std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
-                    return e;
-                },
-            };
-
-            const utf8 = row.columnText(0);
-            const name = row.columnText(1);
-
-            std.debug.warn("{s}: {s} ({x})\n", .{ name, utf8, utf8 });
-        }
-    }
-};
