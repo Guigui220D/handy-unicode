@@ -157,17 +157,20 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         const used = row.columnInt(2);
         const id = row.columnInt(3);
 
+        if (selector == 0)
+            std.debug.warn("(Page {})\n", .{page + 1});
+
         if (utf8.len == 1 and std.ascii.isCntrl(utf8[0])) {
             if (used != 0) {
-                std.debug.warn("{} - [cntrl]: {s} (used {} times)\n", .{ selector + 1, name, used });
+                std.debug.warn("{} - [cntrl] : {s} (used {} times)\n", .{ selector + 1, name, used });
             } else {
-                std.debug.warn("{} - [cntrl]: {s} (never used)\n", .{ selector + 1, name });
+                std.debug.warn("{} - [cntrl] : {s} (never used)\n", .{ selector + 1, name });
             }
         } else {
             if (used != 0) {
-                std.debug.warn("{} - {s}: {s} (used {} times)\n", .{ selector + 1, utf8, name, used });
+                std.debug.warn("{} - {s} : {s} (used {} times)\n", .{ selector + 1, utf8, name, used });
             } else {
-                std.debug.warn("{} - {s}: {s} (never used)\n", .{ selector + 1, utf8, name });
+                std.debug.warn("{} - {s} : {s} (never used)\n", .{ selector + 1, utf8, name });
             }
         }
 
@@ -188,7 +191,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
     }
 }
 
-pub fn select(index: u3) !void {
+pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
     if (index < result_count) {
         const id = result_ids[index];
         var found = false;
@@ -202,6 +205,8 @@ pub fn select(index: u3) !void {
                 else => continue,
             };
         }
+        var utf8: []const u8 = undefined;
+
         ans = try database.execBind("SELECT utf8 FROM chars WHERE id == ?;", .{id});
         while (ans.next()) |t| {
             const row = switch (t) {
@@ -215,8 +220,15 @@ pub fn select(index: u3) !void {
 
             std.debug.assert(!found);
             found = true;
-            std.debug.warn("'{s}' copied to clipboard! (actually, this is not implemented)\n", .{row.columnText(0)});
+
+            utf8 = try allocator.dupe(u8, row.columnText(0));
         }
+
+        try @import("clipboard.zig").putInClipboard(allocator, utf8);
+        std.debug.warn("'{s}' copied to clipboard!\n", .{utf8});
+        allocator.free(utf8);
+
         return;
+
     } else return error.doesNotExist;
 }

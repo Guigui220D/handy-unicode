@@ -50,8 +50,8 @@ pub fn main() anyerror!void {
                 },
                 '1'...'8' => {
                     var index: u3 = @truncate(u3, line[0] - '1');
-                    db.select(index) catch |err| switch (err) {
-                        error.doesNotExist => try stderr.print("Last search does not have a result with index {c}\n", .{ line[0] }),
+                    db.select(allocator, index) catch |err| switch (err) {
+                        error.doesNotExist => try stderr.print("Last search page does not have a result with index {c}\n", .{ line[0] }),
                         else => return err
                     };
                 },
