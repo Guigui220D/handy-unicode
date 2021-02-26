@@ -13,44 +13,34 @@ const win = struct {
     extern "kernel32" fn GlobalUnlock(hMem: ?*c_void) c_int;
     extern "kernel32" fn GetConsoleWindow() [*c]c_int;
 
-    const cf_text_format: c_uint = 1;
+    const cf_text_format: c_uint = 13;
     const gmem_moveable: c_uint = 2;
 };
 
-extern "c" fn system([*:0]const u8) c_int;
+//extern "c" fn system([*:0]const u8) c_int;
 
-pub fn unused(allocator: *std.mem.Allocator, text: []const u8) !void {
-    if (builtin.os.tag != .windows)
-        @compileError("Not implemented for other things than windows\n");
-    //NO, BAD SOLUTION
-    {
-        var temp = try std.fs.cwd().openFile("tmp.tmp", .{.write = true});
-        defer temp.close();
-
-        try temp.writeAll(text);
-    }
-
-    if (system("clip tmp.tmp") != 0)
-        return error.CopyFailed;
-}
-
-pub fn putInClipboard(allocator: *std.mem.Allocator, text: []const u8) !void {
+pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) !void {
     if (builtin.os.tag == .windows) {
-        //var utf16 = try std.unicode.utf8ToUtf16LeWithNull(allocator, text);
-        //defer allocator.free(utf16);
-        //std.debug.print("utf16: {s}\n", .{std.mem.toBytes(utf16)});
+        var utf16 = try std.unicode.utf8ToUtf16LeWithNull(allocator, utf8);
+        defer allocator.free(utf16);
 
-        //Null terminator stuff :/
-        var len: usize = text.len + 1;
-        var ptr = win.GlobalAlloc(win.gmem_moveable, len) orelse return error.WinMemFail;
+        var text: []const u8 = std.mem.sliceAsBytes(utf16);
 
-        ptr = win.GlobalLock(ptr) orelse {
+        std.debug.print("{} utf16 bytes: {x}\n", .{text.len, text});
+
+        var ptr = win.GlobalAlloc(win.gmem_moveable, text.len + 2) orelse {
             std.debug.print("Win Error: {}\n", .{win.GetLastError()});
             return error.WinError;
         };
-        
-        @memcpy(@ptrCast([*]u8, ptr), text.ptr, text.len);
-        @ptrCast([*]u8, ptr)[len] = 0;
+
+        {
+            var buf = win.GlobalLock(ptr) orelse {
+                std.debug.print("Win Error: {}\n", .{win.GetLastError()});
+                return error.WinError;
+            };
+            
+            @memcpy(@ptrCast([*]u8, buf), text.ptr, text.len + 2);
+        }
 
         if (win.GlobalUnlock(ptr) == 0) {
             if (win.GetLastError() != 0) {
@@ -59,7 +49,6 @@ pub fn putInClipboard(allocator: *std.mem.Allocator, text: []const u8) !void {
             }
         }
 
-        //I hate the windows api
         if (win.OpenClipboard(win.GetConsoleWindow().?) == 0) {
             std.debug.print("Win Error: {}\n", .{win.GetLastError()});
             return error.WinError;
