@@ -1,6 +1,15 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+pub const xlib = @cImport({
+    @cInclude("X11/Xlib.h");
+    @cInclude("X11/Xutil.h");
+});
+
+pub fn xlibPutInClipboard() {
+    var display = xlib.XOpenDisplay(0);
+}
+
 const win = struct {
     extern "user32" fn SetClipboardData(uFormat: c_uint, hMem: ?*c_void) ?*c_void;
     extern "user32" fn OpenClipboard(hWndNewOwner: [*c]c_int) c_int;

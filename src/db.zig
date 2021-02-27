@@ -224,7 +224,8 @@ pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
             utf8 = try allocator.dupe(u8, row.columnText(0));
         }
 
-        try @import("clipboard.zig").putInClipboard(allocator, utf8);
+        //try @import("clipboard.zig").putInClipboard(allocator, utf8);
+        @import("clipboard.zig").xlibPutInClipboard();
         std.debug.warn("'{s}' copied to clipboard!\n", .{utf8});
         allocator.free(utf8);
 
