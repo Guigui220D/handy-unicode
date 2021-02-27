@@ -97,10 +97,6 @@ pub fn setSearch(allocator: *std.mem.Allocator, word: []u8) !void {
     user_query = try allocator.dupe(u8, word);
 }
 
-pub fn nextPage() void {
-    page += 1;
-}
-
 fn prepareQuery(allocator: *std.mem.Allocator) !void {
     const stderr = std.io.getStdErr().writer();
 
@@ -185,6 +181,8 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
             page = 0;
         } else
             std.debug.warn("Nothing found.\n", .{});
+    } else {
+        page += 1;
     }
 }
 
