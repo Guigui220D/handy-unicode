@@ -42,10 +42,10 @@ pub fn main() anyerror!void {
                     try db.runQuery(allocator);
                 },
                 '>' => {
-                    db.nextPage();
                     db.runQuery(allocator) catch |err| {
-                        if (err == error.noSearch)
+                        if (err == error.noSearch) {
                             try stderr.writeAll("No search was started!\n");
+                        } else return err;
                     };
                 },
                 '1'...'8' => {
