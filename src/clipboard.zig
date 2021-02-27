@@ -26,7 +26,7 @@ pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) !void {
 
         var text: []const u8 = std.mem.sliceAsBytes(utf16);
 
-        std.debug.print("{} utf16 bytes: {x}\n", .{text.len, text});
+        //std.debug.print("{} utf16 bytes: {x}\n", .{text.len, text});
 
         var ptr = win.GlobalAlloc(win.gmem_moveable, text.len + 2) orelse {
             std.debug.print("Win Error: {}\n", .{win.GetLastError()});

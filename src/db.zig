@@ -1,6 +1,8 @@
 const std = @import("std");
 const sqlite = @import("sqlite");
 
+const Search = @import("Search.zig");
+
 const db_file_name = "codes.db";
 var database: sqlite.SQLite = undefined;
 
@@ -84,7 +86,7 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
 
 var query: ?[]const u8 = null;
 var page: usize = 0;
-var search: ?[]const u8 = null;
+var user_query: ?[]const u8 = null;
 
 var result_ids: [8]c_int = undefined;
 var result_count: usize = 0;
@@ -92,7 +94,7 @@ var result_count: usize = 0;
 pub fn setSearch(allocator: *std.mem.Allocator, word: []u8) !void {
     deallocSearch(allocator);
     page = 0;
-    search = try allocator.dupe(u8, word);
+    user_query = try allocator.dupe(u8, word);
 }
 
 pub fn nextPage() void {
@@ -102,25 +104,20 @@ pub fn nextPage() void {
 fn prepareQuery(allocator: *std.mem.Allocator) !void {
     const stderr = std.io.getStdErr().writer();
 
-    if (search == null)
+    if (user_query == null)
         return error.noSearch;
 
     deallocQuery(allocator);
-    //TODO: this is just a prototype
-    var temp = try allocator.alloc(u8, std.mem.replacementSize(u8, search.?, "\x0D", ""));
+
+    var temp = try allocator.alloc(u8, std.mem.replacementSize(u8, user_query.?, "\x0D", ""));
     defer allocator.free(temp);
 
-    _ = std.mem.replace(u8, search.?, "\x0D", "", temp);
+    _ = std.mem.replace(u8, user_query.?, "\x0D", "", temp);
+    
+    const search = Search{ .user_query = temp, .page = page };
+    query = try std.fmt.allocPrint(allocator, "{}{c}", .{ search, 0 });
 
-    query = try std.fmt.allocPrint(allocator, 
-        \\SELECT utf8, name, times_used, id
-        \\FROM chars 
-        \\WHERE name LIKE '%{s}%' 
-        \\ORDER BY times_used DESC
-        \\LIMIT 8
-        \\OFFSET {}
-        \\{c}
-        , .{ temp, page * 8, 0 });
+    //std.debug.print("\n{s}\n\n", .{query});
 }
 
 pub fn deallocQuery(allocator: *std.mem.Allocator) void {
@@ -130,9 +127,9 @@ pub fn deallocQuery(allocator: *std.mem.Allocator) void {
 }
 
 pub fn deallocSearch(allocator: *std.mem.Allocator) void {
-    if (search) |s|
+    if (user_query) |s|
         allocator.free(s);
-    search = null;
+    user_query = null;
 }
 
 pub fn runQuery(allocator: *std.mem.Allocator) !void {
@@ -158,19 +155,19 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         const id = row.columnInt(3);
 
         if (selector == 0)
-            std.debug.warn("(Page {})\n", .{page + 1});
+            std.debug.warn(" (Page {})\n", .{page + 1});
 
         if (utf8.len == 1 and std.ascii.isCntrl(utf8[0])) {
             if (used != 0) {
-                std.debug.warn("{} - [cntrl] : {s} (used {} times)\n", .{ selector + 1, name, used });
+                std.debug.warn("  {} - [cntrl] : {s} (used {} times)\n", .{ selector + 1, name, used });
             } else {
-                std.debug.warn("{} - [cntrl] : {s} (never used)\n", .{ selector + 1, name });
+                std.debug.warn("  {} - [cntrl] : {s} (never used)\n", .{ selector + 1, name });
             }
         } else {
             if (used != 0) {
-                std.debug.warn("{} - {s} : {s} (used {} times)\n", .{ selector + 1, utf8, name, used });
+                std.debug.warn("  {} - {s} : {s} (used {} times)\n", .{ selector + 1, utf8, name, used });
             } else {
-                std.debug.warn("{} - {s} : {s} (never used)\n", .{ selector + 1, utf8, name });
+                std.debug.warn("  {} - {s} : {s} (never used)\n", .{ selector + 1, utf8, name });
             }
         }
 
