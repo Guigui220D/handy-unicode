@@ -2,6 +2,7 @@ const std = @import("std");
 const sqlite = @import("sqlite");
 
 const Search = @import("Search.zig");
+const Printable = @import("Printable.zig");
 
 const db_file_name = "codes.db";
 var database: sqlite.SQLite = undefined;
@@ -129,6 +130,9 @@ pub fn deallocSearch(allocator: *std.mem.Allocator) void {
 }
 
 pub fn runQuery(allocator: *std.mem.Allocator) !void {
+    const stderr = std.io.getStdErr().writer();
+    const stdout = std.io.getStdOut().writer();
+
     try prepareQuery(allocator);
     //std.debug.print("query: {s}\n", .{query});
     var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, query.?.ptr)));
@@ -151,20 +155,15 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         const id = row.columnInt(3);
 
         if (selector == 0)
-            std.debug.warn(" (Page {})\n", .{page + 1});
+            try stdout.print(" (Page {})\n", .{page + 1});
 
-        if (utf8.len == 1 and std.ascii.isCntrl(utf8[0])) {
-            if (used != 0) {
-                std.debug.warn("  {} - [cntrl] : {s} (used {} times)\n", .{ selector + 1, name, used });
-            } else {
-                std.debug.warn("  {} - [cntrl] : {s} (never used)\n", .{ selector + 1, name });
-            }
+        std.debug.print("{x} ", .{utf8});
+
+        const printable = Printable{.utf8 = utf8};
+        if (used != 0) {
+            try stdout.print("  {} - {} : {s} (used {} times)\n", .{ selector + 1, printable, name, used });
         } else {
-            if (used != 0) {
-                std.debug.warn("  {} - {s} : {s} (used {} times)\n", .{ selector + 1, utf8, name, used });
-            } else {
-                std.debug.warn("  {} - {s} : {s} (never used)\n", .{ selector + 1, utf8, name });
-            }
+            try stdout.print("  {} - {} : {s} (never used)\n", .{ selector + 1, printable, name });
         }
 
         std.debug.assert(selector < 8);
@@ -187,6 +186,9 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
 }
 
 pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
+    const stderr = std.io.getStdErr().writer();
+    const stdout = std.io.getStdOut().writer();
+
     if (index < result_count) {
         const id = result_ids[index];
         var found = false;
@@ -219,12 +221,40 @@ pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
             utf8 = try allocator.dupe(u8, row.columnText(0));
         }
 
-        //try @import("clipboard.zig").putInClipboard(allocator, utf8);
-        @import("clipboard.zig").xlibPutInClipboard();
-        std.debug.warn("'{s}' copied to clipboard!\n", .{utf8});
+        if (@import("clipboard.zig").putInClipboard(allocator, utf8)) {
+            const printable = Printable{.utf8 = utf8};
+            try stdout.print("'{s}' copied to clipboard!\n", .{printable});
+        } else |err| {
+            if (err == error.ClipboardNotAvailable) {
+                try stderr.writeAll("Clipboard copy not available on this platform :/\n");
+            } else 
+                return err;
+        } 
+            
         allocator.free(utf8);
-
-        return;
-
     } else return error.doesNotExist;
 }
+
+pub const testing = struct { //Namespace for testing functions
+    pub fn printAll() !void {
+        var rows = database.exec("SELECT utf8, name FROM chars;");
+
+        while (rows.next()) |row_item| {
+            const row = switch (row_item) {
+                // Ignore when statements are completed
+                .Done => continue,
+                .Row => |r| r,
+                .Error => |e| {
+                    std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
+                    return e;
+                },
+            };
+
+            const utf8 = row.columnText(0);
+            const name = row.columnText(1);
+            const printable = Printable{.utf8 = utf8};
+
+            std.debug.warn("{s}: {s} ({x})\n", .{ name, printable, utf8 });
+        }
+    }
+};

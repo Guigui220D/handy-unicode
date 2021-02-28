@@ -1,15 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-pub const xlib = @cImport({
-    @cInclude("X11/Xlib.h");
-    @cInclude("X11/Xutil.h");
-});
-
-pub fn xlibPutInClipboard() {
-    var display = xlib.XOpenDisplay(0);
-}
-
 const win = struct {
     extern "user32" fn SetClipboardData(uFormat: c_uint, hMem: ?*c_void) ?*c_void;
     extern "user32" fn OpenClipboard(hWndNewOwner: [*c]c_int) c_int;
@@ -28,7 +19,7 @@ const win = struct {
 
 //extern "c" fn system([*:0]const u8) c_int;
 
-pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) !void {
+pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) anyerror!void {
     if (builtin.os.tag == .windows) {
         var utf16 = try std.unicode.utf8ToUtf16LeWithNull(allocator, utf8);
         defer allocator.free(utf16);
@@ -38,13 +29,13 @@ pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) !void {
         //std.debug.print("{} utf16 bytes: {x}\n", .{text.len, text});
 
         var ptr = win.GlobalAlloc(win.gmem_moveable, text.len + 2) orelse {
-            std.debug.print("Win Error: {}\n", .{win.GetLastError()});
+            std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
             return error.WinError;
         };
 
         {
             var buf = win.GlobalLock(ptr) orelse {
-                std.debug.print("Win Error: {}\n", .{win.GetLastError()});
+                std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
                 return error.WinError;
             };
             
@@ -53,26 +44,27 @@ pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) !void {
 
         if (win.GlobalUnlock(ptr) == 0) {
             if (win.GetLastError() != 0) {
-                std.debug.print("Win Error: {}\n", .{win.GetLastError()});
+                std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
                 return error.WinError;
             }
         }
 
         if (win.OpenClipboard(win.GetConsoleWindow().?) == 0) {
-            std.debug.print("Win Error: {}\n", .{win.GetLastError()});
+            std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
             return error.WinError;
         }
         
         defer _ = win.CloseClipboard();
 
         if (win.EmptyClipboard() == 0) {
-            std.debug.print("Win Error: {}\n", .{win.GetLastError()});
+            std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
             return error.WinError;
         }
 
         if (win.SetClipboardData(win.cf_text_format, ptr) == null) {
-            std.debug.print("Win Error: {}\n", .{win.GetLastError()});
+            std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
             return error.CouldntCopy;
         }
-    } else @compileError("Clipboard actions are not implemented yet for anything other than windows.");
+    } else 
+        return error.ClipboardNotAvailable;
 }

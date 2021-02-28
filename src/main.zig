@@ -23,14 +23,16 @@ pub fn main() anyerror!void {
     defer db.closeDb();
 
     if (!db_exists) {
-        try stderr.print("The codes database does not exist! Creating it from allkeys.txt...\n", .{});
+        try stdout.print("The codes database does not exist! Creating it from allkeys.txt...\n", .{});
         try db.createTable();
         {
             const file = try cwd.openFile("allkeys.txt", .{ .read = true });
             try db.parseFileAndFillDb(file);
         }
-        try stderr.print("Done!\n", .{});
+        try stdout.print("Done!\n", .{});
     }
+
+    //try db.testing.printAll();
 
     var buffer: [1024]u8 = undefined;
 
@@ -51,12 +53,12 @@ pub fn main() anyerror!void {
                 '1'...'8' => {
                     var index: u3 = @truncate(u3, line[0] - '1');
                     db.select(allocator, index) catch |err| switch (err) {
-                        error.doesNotExist => try stderr.print("Last search page does not have a result with index {c}\n", .{ line[0] }),
+                        error.doesNotExist => try stderr.print("Last search page does not have a result with index {c}.\n", .{ line[0] }),
                         else => return err
                     };
                 },
                 'q' => break,
-                else => try stderr.print("Get some help lol\n", .{})
+                else => try stderr.print("Invalid command.\n", .{})
             }
         }
     }
