@@ -36,13 +36,15 @@ pub fn format(
         first = false;
     }
 
+    const page_size = options.width orelse 8;
+
     try writer.print(
         \\ORDER BY times_used DESC
-        \\LIMIT 8
+        \\LIMIT {}
         \\OFFSET {}
-        , .{self.page * 8}
+        , .{page_size, self.page * page_size}
     );
 }
 
 user_query: []const u8,
-page: usize
+page: usize,

@@ -67,7 +67,6 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
         while (codepoint_iterator.next()) |code|
             i += try std.unicode.utf8Encode(try std.fmt.parseInt(u21, code, 16), utf8[i..]);
 
-        //std.debug.print("{s}\n", .{utf8[0..i]});
         var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO chars(utf8, name) VALUES (X'{x}', '{s}');", .{ utf8[0..i], name });
         buf2[request.len] = 0;
 
@@ -81,7 +80,6 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
                 else => continue,
             }
         }
-        //std.debug.print("{x}\n", .{id});
     }
 }
 
@@ -105,16 +103,9 @@ fn prepareQuery(allocator: *std.mem.Allocator) !void {
         return error.noSearch;
 
     deallocQuery(allocator);
-
-    var temp = try allocator.alloc(u8, std.mem.replacementSize(u8, user_query.?, "\x0D", ""));
-    defer allocator.free(temp);
-
-    _ = std.mem.replace(u8, user_query.?, "\x0D", "", temp);
     
-    const search = Search{ .user_query = temp, .page = page };
+    const search = Search{ .user_query = user_query.?, .page = page };
     query = try std.fmt.allocPrint(allocator, "{}{c}", .{ search, 0 });
-
-    //std.debug.print("\n{s}\n\n", .{query});
 }
 
 pub fn deallocQuery(allocator: *std.mem.Allocator) void {
@@ -134,7 +125,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
     const stdout = std.io.getStdOut().writer();
 
     try prepareQuery(allocator);
-    //std.debug.print("query: {s}\n", .{query});
+
     var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, query.?.ptr)));
 
     var selector: usize = 0;
@@ -157,9 +148,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         if (selector == 0)
             try stdout.print(" (Page {})\n", .{page + 1});
 
-        std.debug.print("{x} ", .{utf8});
-
-        const printable = Printable{.utf8 = utf8};
+        const printable = Printable{.utf8 = utf8, .id = id};
         if (used != 0) {
             try stdout.print("  {} - {} : {s} (used {} times)\n", .{ selector + 1, printable, name, used });
         } else {
@@ -222,7 +211,7 @@ pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
         }
 
         if (@import("clipboard.zig").putInClipboard(allocator, utf8)) {
-            const printable = Printable{.utf8 = utf8};
+            const printable = Printable{.utf8 = utf8, .id = id};
             try stdout.print("'{s}' copied to clipboard!\n", .{printable});
         } else |err| {
             if (err == error.ClipboardNotAvailable) {
@@ -237,7 +226,7 @@ pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
 
 pub const testing = struct { //Namespace for testing functions
     pub fn printAll() !void {
-        var rows = database.exec("SELECT utf8, name FROM chars;");
+        var rows = database.exec("SELECT utf8, name, id FROM chars;");
 
         while (rows.next()) |row_item| {
             const row = switch (row_item) {
@@ -252,9 +241,10 @@ pub const testing = struct { //Namespace for testing functions
 
             const utf8 = row.columnText(0);
             const name = row.columnText(1);
-            const printable = Printable{.utf8 = utf8};
+            const id = row.columnInt(2);
+            const printable = Printable{.utf8 = utf8, .id = id};
 
-            std.debug.warn("{s}: {s} ({x})\n", .{ name, printable, utf8 });
+            std.debug.warn("{s}: {s} ({x}) id: {}\n", .{ name, printable, utf8, id });
         }
     }
 };

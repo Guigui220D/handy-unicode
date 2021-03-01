@@ -23,32 +23,31 @@ pub fn main() anyerror!void {
     defer db.closeDb();
 
     if (!db_exists) {
-        try stdout.print("The codes database does not exist! Creating it from allkeys.txt...\n", .{});
+        try stdout.print("Creating the db from allkeys.txt for the first time... (This could take a few minutes)\n", .{});
+        var timer = try std.time.Timer.start();
         try db.createTable();
         {
             const file = try cwd.openFile("allkeys.txt", .{ .read = true });
             try db.parseFileAndFillDb(file);
         }
-        try stdout.print("Done!\n", .{});
+        try stdout.print("Done! (took {}s)\n", .{@divTrunc(timer.read(), 1_000_000_000)});
     }
-
-    //try db.testing.printAll();
 
     var buffer: [1024]u8 = undefined;
 
-    while (try prompt(buffer[0..])) |line| {
+    while (try prompt(buffer[0..])) |_line| {
+        var buf2: [1024]u8 = undefined;
+        var line = _line;
+
+        line.ptr = &buf2;
+        line.len = std.mem.replacementSize(u8, _line, "\x0D", "");
+        _ = std.mem.replace(u8, _line, "\x0D", "", line);
+
         if (line.len != 0) {
             switch (line[0]) {
                 ':' => {
                     try db.setSearch(allocator, line[1..]);
                     try db.runQuery(allocator);
-                },
-                '>' => {
-                    db.runQuery(allocator) catch |err| {
-                        if (err == error.noSearch) {
-                            try stderr.writeAll("No search was started!\n");
-                        } else return err;
-                    };
                 },
                 '1'...'8' => {
                     var index: u3 = @truncate(u3, line[0] - '1');
@@ -57,9 +56,16 @@ pub fn main() anyerror!void {
                         else => return err
                     };
                 },
+                'a' => try db.testing.printAll(),
                 'q' => break,
                 else => try stderr.print("Invalid command.\n", .{})
             }
+        } else {
+            db.runQuery(allocator) catch |err| {
+                if (err == error.noSearch) {
+                    try stderr.writeAll("No search was started!\n");
+                } else return err;
+            };
         }
     }
 
