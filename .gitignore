@@ -3,3 +3,4 @@ zig-cache/
 sqlite-c/
 *.dll
 *.db
+*.db-journal

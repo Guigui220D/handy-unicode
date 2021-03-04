@@ -49,38 +49,50 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
     var reader = file.reader();
 
     var buffer: [1024]u8 = undefined;
-    var buf2: [1024]u8 = undefined;
+
+    const insert = (try database.prepare("INSERT INTO chars(utf8, name) VALUES (?, ?);", null)).?;
 
     //Read all lines
     while (try reader.readUntilDelimiterOrEof(buffer[0..], '\n')) |line| {
         if (line.len == 0 or line[0] == '@' or line[0] == '#')
             continue;
 
-        var parts = std.mem.tokenize(line, "#"); // Separate name from actual data
-        const data = parts.next() orelse return error.IllFormedCodeFile;
-        const name = parts.rest();
+        var data = line;
+        var name = line;
 
-        var codepoint = std.mem.tokenize(data, ";").next() orelse return error.IllFormedCodeFile;
-        var utf8: [32]u8 = undefined;
-        var codepoint_iterator = std.mem.tokenize(codepoint, " ");
-        var i: usize = 0;
-        while (codepoint_iterator.next()) |code|
-            i += try std.unicode.utf8Encode(try std.fmt.parseInt(u21, code, 16), utf8[i..]);
-
-        var request = try std.fmt.bufPrint(buf2[0..1023], "INSERT INTO chars(utf8, name) VALUES (X'{x}', '{s}');", .{ utf8[0..i], name });
-        buf2[request.len] = 0;
-
-        var ans = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, request.ptr)));
-        while (ans.next()) |row_item| {
-            switch (row_item) {
-                .Error => |e| {
-                    std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
-                    return e;
-                },
-                else => continue,
+        _ = blk: {
+            for (line) |c, i| {
+                if (c == '#') {
+                    if (i + 2 >= line.len)
+                        return error.IllFormedCodeFile;
+                    data = line[0..i];
+                    name = line[(i + 2)..];
+                    break :blk;
+                }
             }
+            return error.IllFormedCodeFile;
+        };
+
+        var utf8: [16]u8 = undefined;
+        var codepoint_iterator = std.mem.tokenize(data, " ");
+        var i: usize = 0;
+        while (codepoint_iterator.next()) |code| {
+            if (std.mem.eql(u8, ";", code))
+                break;
+            i += try std.unicode.utf8Encode(try std.fmt.parseInt(u21, code, 16), utf8[i..]);
         }
+
+        if (i == 0)
+            return error.IllFormedCodeFile;
+
+        try insert.bindBlob(1, utf8[0..i]);
+        try insert.bindText(2, name);
+
+        _ = try insert.step();
+        try insert.reset();
     }
+
+    try insert.finalize();
 }
 
 var query: ?[]const u8 = null;
@@ -103,7 +115,7 @@ fn prepareQuery(allocator: *std.mem.Allocator) !void {
         return error.noSearch;
 
     deallocQuery(allocator);
-    
+
     const search = Search{ .user_query = user_query.?, .page = page };
     query = try std.fmt.allocPrint(allocator, "{}{c}", .{ search, 0 });
 }
@@ -140,7 +152,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
             },
         };
 
-        const utf8 = row.columnText(0);
+        const utf8 = row.columnBlob(0);
         const name = row.columnText(1);
         const used = row.columnInt(2);
         const id = row.columnInt(3);
@@ -148,7 +160,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         if (selector == 0)
             try stdout.print(" (Page {})\n", .{page + 1});
 
-        const printable = Printable{.utf8 = utf8, .id = id};
+        const printable = Printable{ .utf8 = utf8, .id = id };
         if (used != 0) {
             try stdout.print("  {} - {} : {s} (used {} times)\n", .{ selector + 1, printable, name, used });
         } else {
@@ -211,15 +223,15 @@ pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
         }
 
         if (@import("clipboard.zig").putInClipboard(allocator, utf8)) {
-            const printable = Printable{.utf8 = utf8, .id = id};
+            const printable = Printable{ .utf8 = utf8, .id = id };
             try stdout.print("'{s}' copied to clipboard!\n", .{printable});
         } else |err| {
             if (err == error.ClipboardNotAvailable) {
                 try stderr.writeAll("Clipboard copy not available on this platform :/\n");
-            } else 
+            } else
                 return err;
-        } 
-            
+        }
+
         allocator.free(utf8);
     } else return error.doesNotExist;
 }
@@ -239,10 +251,10 @@ pub const testing = struct { //Namespace for testing functions
                 },
             };
 
-            const utf8 = row.columnText(0);
+            const utf8 = row.columnBlob(0);
             const name = row.columnText(1);
             const id = row.columnInt(2);
-            const printable = Printable{.utf8 = utf8, .id = id};
+            const printable = Printable{ .utf8 = utf8, .id = id };
 
             std.debug.warn("{s}: {s} ({x}) id: {}\n", .{ name, printable, utf8, id });
         }

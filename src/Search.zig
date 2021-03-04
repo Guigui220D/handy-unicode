@@ -12,7 +12,7 @@ pub fn format(
     );
 
     var tokens = std.mem.tokenize(self.user_query, " ");
-    
+
     var first = true;
     while (tokens.next()) |word| {
         var ignore = (word[0] == '-');
@@ -25,13 +25,13 @@ pub fn format(
             try writer.writeAll("WHERE ");
         } else
             try writer.writeAll("AND ");
-        
+
         try writer.writeAll("name ");
 
         if (ignore)
             try writer.writeAll("NOT ");
 
-        try writer.print("LIKE '%{s}%'\n", .{ kept });
+        try writer.print("LIKE '%{s}%'\n", .{kept});
 
         first = false;
     }
@@ -42,8 +42,7 @@ pub fn format(
         \\ORDER BY times_used DESC
         \\LIMIT {}
         \\OFFSET {}
-        , .{page_size, self.page * page_size}
-    );
+    , .{ page_size, self.page * page_size });
 }
 
 user_query: []const u8,

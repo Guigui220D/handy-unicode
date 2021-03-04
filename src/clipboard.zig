@@ -1,6 +1,16 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+//extern "c" fn system([*:0]const u8) c_int;
+
+pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) anyerror!void {
+    switch (builtin.os.tag) {
+        .windows => try win.putInClipboard(allocator, utf8),
+        else => return error.ClipboardNotAvailable
+    }
+}
+
+
 const win = struct {
     extern "user32" fn SetClipboardData(uFormat: c_uint, hMem: ?*c_void) ?*c_void;
     extern "user32" fn OpenClipboard(hWndNewOwner: [*c]c_int) c_int;
@@ -15,12 +25,8 @@ const win = struct {
 
     const cf_text_format: c_uint = 13;
     const gmem_moveable: c_uint = 2;
-};
 
-//extern "c" fn system([*:0]const u8) c_int;
-
-pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) anyerror!void {
-    if (builtin.os.tag == .windows) {
+    fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) !void {
         var utf16 = try std.unicode.utf8ToUtf16LeWithNull(allocator, utf8);
         defer allocator.free(utf16);
 
@@ -38,7 +44,7 @@ pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) anyerror!
                 std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
                 return error.WinError;
             };
-            
+
             @memcpy(@ptrCast([*]u8, buf), text.ptr, text.len + 2);
         }
 
@@ -53,7 +59,7 @@ pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) anyerror!
             std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
             return error.WinError;
         }
-        
+
         defer _ = win.CloseClipboard();
 
         if (win.EmptyClipboard() == 0) {
@@ -65,6 +71,5 @@ pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) anyerror!
             std.debug.warn("Win Error: {}\n", .{win.GetLastError()});
             return error.CouldntCopy;
         }
-    } else 
-        return error.ClipboardNotAvailable;
-}
+    }
+};

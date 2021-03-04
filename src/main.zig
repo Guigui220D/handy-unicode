@@ -52,13 +52,13 @@ pub fn main() anyerror!void {
                 '1'...'8' => {
                     var index: u3 = @truncate(u3, line[0] - '1');
                     db.select(allocator, index) catch |err| switch (err) {
-                        error.doesNotExist => try stderr.print("Last search page does not have a result with index {c}.\n", .{ line[0] }),
-                        else => return err
+                        error.doesNotExist => try stderr.print("Last search page does not have a result with index {c}.\n", .{line[0]}),
+                        else => return err,
                     };
                 },
                 'a' => try db.testing.printAll(),
                 'q' => break,
-                else => try stderr.print("Invalid command.\n", .{})
+                else => try stderr.print("Invalid command.\n", .{}),
             }
         } else {
             db.runQuery(allocator) catch |err| {

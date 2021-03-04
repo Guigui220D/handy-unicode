@@ -10,7 +10,7 @@ pub fn format(
         var ch = self.utf8[0];
         if (ch == 0x7f)
             ch = 0xa1;
-            
+
         try writer.writeByte('<');
         try writer.writeAll(&[_]u8{ 0xe2, 0x90 });
         try writer.writeByte(0x80 | ch);
@@ -26,4 +26,4 @@ pub fn format(
 }
 
 utf8: []const u8,
-id: c_int   //Find better solution
+id: c_int //Find better solution
