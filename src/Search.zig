@@ -11,15 +11,35 @@ pub fn format(
         \\FROM chars 
     );
 
-    var tokens = std.mem.tokenize(self.user_query, " ");
+    var rest = self.user_query;
+    var tokens = std.mem.tokenize(rest, " ");
 
     var first = true;
-    while (tokens.next()) |word| {
-        var ignore = (word[0] == '-');
-
+    while (tokens.next()) |word| : (rest = tokens.rest()) {
         var kept = word;
-        if (ignore)
+        var ignore = (kept[0] == '-');
+        
+        if (ignore) {
+            rest = rest[1..];
             kept = kept[1..];
+        }
+
+        if (kept.len == 0)
+            continue;
+
+        if (kept[0] == '"') {
+            rest = rest[1..];
+            kept = for (rest) |c, i| {
+                if (c == '"') {
+                    const quoted = rest[0..i];
+                    tokens = std.mem.tokenize(rest[(i + 1)..], " ");
+                    break quoted;
+                }
+            } else blk: {
+                tokens = std.mem.tokenize("", " ");
+                break :blk rest;
+            };
+        }
 
         if (first) {
             try writer.writeAll("WHERE ");
