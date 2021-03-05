@@ -79,6 +79,6 @@ fn prompt(buffer: []u8) !?[]u8 {
     const stdout = std.io.getStdOut().writer();
     const stdin = std.io.getStdIn().reader();
 
-    try stdout.writeAll("(huz) > ");
+    try stdout.writeAll("(⚡huz) > ");
     return stdin.readUntilDelimiterOrEof(buffer, '\n');
 }

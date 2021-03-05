@@ -3,6 +3,7 @@ const sqlite = @import("sqlite");
 
 const Search = @import("Search.zig");
 const Printable = @import("Printable.zig");
+const utils = @import("utils.zig");
 
 const db_file_name = "codes.db";
 var database: sqlite.SQLite = undefined;
@@ -116,8 +117,8 @@ fn prepareQuery(allocator: *std.mem.Allocator) !void {
 
     deallocQuery(allocator);
 
-    const search = Search{ .user_query = user_query.?, .page = page };
-    query = try std.fmt.allocPrint(allocator, "{}{c}", .{ search, 0 });
+    const search = Search{ .user_query = user_query.?, .page = page, .request_type = .Characters };
+    query = try std.fmt.allocPrint(allocator, "{.8}{c}", .{ search, 0 });
 }
 
 pub fn deallocQuery(allocator: *std.mem.Allocator) void {
@@ -137,6 +138,31 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
     const stdout = std.io.getStdOut().writer();
 
     try prepareQuery(allocator);
+
+    if (page == 0) {
+        const search = Search{ .user_query = user_query.?, .page = 0, .request_type = .Count };
+        const count_query = try std.fmt.allocPrint(allocator, "{.0}{c}", .{ search, 0 });
+        defer allocator.free(count_query);
+
+        var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, count_query.ptr)));
+        while (rows.next()) |row_item| {
+            const row = switch (row_item) {
+                // Ignore when statements are completed
+                .Done => continue,
+                .Row => |r| r,
+                .Error => |e| {
+                    std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
+                    return e;
+                },
+            };
+
+            const count = row.columnInt(0);
+            if (count == 0) {
+                try stdout.print(" - Query prepared, got no results :/ -\n", .{});
+            } else
+                try stdout.print(" - Query prepared 🔍, got {} result(s)! ({} page(s) 📃) -\n", .{ count, @divFloor(count, 8) + 1 });
+        }
+    }
 
     var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, query.?.ptr)));
 
@@ -161,10 +187,11 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
             try stdout.print(" (Page {})\n", .{page + 1});
 
         const printable = Printable{ .utf8 = utf8, .id = id };
+        const circled_digit = utils.circledDigit(@truncate(u3, selector));
         if (used != 0) {
-            try stdout.print("  {} - {} : {s} (used {} times)\n", .{ selector + 1, printable, name, used });
+            try stdout.print("  {s} - {} : {s} (used {} times)\n", .{ circled_digit, printable, name, used });
         } else {
-            try stdout.print("  {} - {} : {s} (never used)\n", .{ selector + 1, printable, name });
+            try stdout.print("  {s} - {} : {s} (never used)\n", .{ circled_digit, printable, name });
         }
 
         std.debug.assert(selector < 8);

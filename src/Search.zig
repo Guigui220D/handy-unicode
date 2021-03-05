@@ -6,10 +6,12 @@ pub fn format(
     options: std.fmt.FormatOptions,
     writer: anytype,
 ) !void {
-    try writer.writeAll(
-        \\SELECT utf8, name, times_used, id
-        \\FROM chars 
-    );
+    try writer.writeAll(switch (self.request_type) {
+        .Characters => "SELECT utf8, name, times_used, id",
+        .Count => "SELECT COUNT(*)",
+    });
+
+    try writer.writeAll("\nFROM chars\n");
 
     var rest = self.user_query;
     var tokens = std.mem.tokenize(rest, " ");
@@ -18,7 +20,7 @@ pub fn format(
     while (tokens.next()) |word| : (rest = tokens.rest()) {
         var kept = word;
         var ignore = (kept[0] == '-');
-        
+
         if (ignore) {
             rest = rest[1..];
             kept = kept[1..];
@@ -56,14 +58,17 @@ pub fn format(
         first = false;
     }
 
-    const page_size = options.width orelse 8;
+    try writer.writeAll("ORDER BY times_used DESC\n");
 
-    try writer.print(
-        \\ORDER BY times_used DESC
-        \\LIMIT {}
-        \\OFFSET {}
-    , .{ page_size, self.page * page_size });
+    if (self.request_type != .Count)
+        try writer.print(
+            \\LIMIT 8
+            \\OFFSET {}
+        , .{self.page * 8});
 }
 
 user_query: []const u8,
 page: usize,
+request_type: enum {
+    Characters, Count
+}

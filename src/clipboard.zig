@@ -6,10 +6,9 @@ const builtin = @import("builtin");
 pub fn putInClipboard(allocator: *std.mem.Allocator, utf8: []const u8) anyerror!void {
     switch (builtin.os.tag) {
         .windows => try win.putInClipboard(allocator, utf8),
-        else => return error.ClipboardNotAvailable
+        else => return error.ClipboardNotAvailable,
     }
 }
-
 
 const win = struct {
     extern "user32" fn SetClipboardData(uFormat: c_uint, hMem: ?*c_void) ?*c_void;
