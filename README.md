@@ -2,6 +2,8 @@
 
 A command line tool for searching and copying unicode characters to the clipboard, made in zig.
 
+![example](https://github.com/lazuli-github/handy-unicode/tree/master/screenshot/screenshot.png)
+
 ### Usage
 
 Your terminal must be set up for utf8 support!
