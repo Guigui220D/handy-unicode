@@ -107,6 +107,7 @@ pub fn setSearch(allocator: *std.mem.Allocator, word: []u8) !void {
     deallocSearch(allocator);
     page = 0;
     user_query = try allocator.dupe(u8, word);
+    errdefer deallocSearch(allocator);
 }
 
 fn prepareQuery(allocator: *std.mem.Allocator) !void {
@@ -119,6 +120,9 @@ fn prepareQuery(allocator: *std.mem.Allocator) !void {
 
     const search = Search{ .user_query = user_query.?, .page = page, .request_type = .Characters };
     query = try std.fmt.allocPrint(allocator, "{.8}{c}", .{ search, 0 });
+
+    if (Search.has_error)
+        return error.UnsafeQuery;
 }
 
 pub fn deallocQuery(allocator: *std.mem.Allocator) void {
@@ -141,6 +145,8 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
 
     if (page == 0) {
         const search = Search{ .user_query = user_query.?, .page = 0, .request_type = .Count };
+        std.debug.assert(!Search.has_error);
+
         const count_query = try std.fmt.allocPrint(allocator, "{.0}{c}", .{ search, 0 });
         defer allocator.free(count_query);
 
@@ -158,7 +164,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
 
             const count = row.columnInt(0);
             if (count == 0) {
-                try stdout.print(" - Query prepared, got no results :/ -\n", .{});
+                try stdout.print(" - Query prepared, got no results 😕 -\n", .{});
             } else
                 try stdout.print(" - Query prepared 🔍, got {} result(s)! ({} page(s) 📃) -\n", .{ count, @divFloor(count, 8) + 1 });
         }
@@ -283,7 +289,7 @@ pub const testing = struct { //Namespace for testing functions
             const id = row.columnInt(2);
             const printable = Printable{ .utf8 = utf8, .id = id };
 
-            std.debug.warn("{s}: {s} ({x}) id: {}\n", .{ name, printable, utf8, id });
+            std.debug.warn("{s}: {s} ({}) id: {}\n", .{ name, printable, std.fmt.fmtSliceHexUpper(utf8), id });
         }
     }
 };

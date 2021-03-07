@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("utils.zig");
 
 pub fn format(
     self: @This(),
@@ -43,6 +44,9 @@ pub fn format(
             };
         }
 
+        has_error = false;
+        utils.checkQueryWord(kept) catch { has_error = true; return; };
+
         if (first) {
             try writer.writeAll("WHERE ");
         } else
@@ -66,6 +70,8 @@ pub fn format(
             \\OFFSET {}
         , .{self.page * 8});
 }
+
+pub var has_error = false;
 
 user_query: []const u8,
 page: usize,

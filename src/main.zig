@@ -10,12 +10,12 @@ pub fn main() anyerror!void {
 
     const cwd = std.fs.cwd(); //Current directory folder
 
-    try stdout.print(
+    try stdout.writeAll(
         \\ ⚡ Welcome to Handy-Unicode Zig (huz) ⚡
         \\(If the lightning bolt character didn't render, make sure your terminal is set up for UTF-8 support)
         //\\Write help if you need any help
         \\
-    , .{});
+    );
 
     var db_exists = try db.checkDbExists();
 
@@ -23,7 +23,7 @@ pub fn main() anyerror!void {
     defer db.closeDb();
 
     if (!db_exists) {
-        try stdout.print("Creating the db from allkeys.txt for the first time... (This could take a few minutes)\n", .{});
+        try stdout.writeAll("Creating the db from allkeys.txt for the first time... (This could take a few minutes)\n");
         var timer = try std.time.Timer.start();
         try db.createTable();
         {
@@ -47,7 +47,12 @@ pub fn main() anyerror!void {
             switch (line[0]) {
                 ':' => {
                     try db.setSearch(allocator, line[1..]);
-                    try db.runQuery(allocator);
+                    db.runQuery(allocator) catch |err| {
+                        if (err == error.UnsafeQuery) {
+                            try stderr.writeAll("Search has special characters and is unsafe at the moment. Please only use alphanum.\n");
+                        } else
+                            return err;
+                    };
                 },
                 '1'...'8' => {
                     var index: u3 = @truncate(u3, line[0] - '1');
@@ -58,7 +63,7 @@ pub fn main() anyerror!void {
                 },
                 'a' => try db.testing.printAll(),
                 'q' => break,
-                else => try stderr.print("Invalid command.\n", .{}),
+                else => try stderr.writeAll("Invalid command.\n"),
             }
         } else {
             db.runQuery(allocator) catch |err| {
