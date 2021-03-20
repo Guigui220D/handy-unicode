@@ -96,17 +96,17 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
     try insert.finalize();
 }
 
-var query: ?[]const u8 = null;
+var query: ?[:0]const u8 = null;
 var page: usize = 0;
 var user_query: ?[]const u8 = null;
 
 var result_ids: [8]c_int = undefined;
 var result_count: usize = 0;
 
-pub fn setSearch(allocator: *std.mem.Allocator, word: []u8) !void {
+pub fn setSearch(allocator: *std.mem.Allocator, words: []u8) !void {
     deallocSearch(allocator);
     page = 0;
-    user_query = try allocator.dupe(u8, word);
+    user_query = try allocator.dupe(u8, words);
     errdefer deallocSearch(allocator);
 }
 
@@ -119,7 +119,7 @@ fn prepareQuery(allocator: *std.mem.Allocator) !void {
     deallocQuery(allocator);
 
     const search = Search{ .user_query = user_query.?, .page = page, .request_type = .Characters };
-    query = try std.fmt.allocPrint(allocator, "{.8}{c}", .{ search, 0 });
+    query = try std.fmt.allocPrintZ(allocator, "{.8}", .{ search });
 
     if (Search.has_error)
         return error.UnsafeQuery;
@@ -147,10 +147,10 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         const search = Search{ .user_query = user_query.?, .page = 0, .request_type = .Count };
         std.debug.assert(!Search.has_error);
 
-        const count_query = try std.fmt.allocPrint(allocator, "{.0}{c}", .{ search, 0 });
+        const count_query = try std.fmt.allocPrintZ(allocator, "{.0}", .{ search });
         defer allocator.free(count_query);
 
-        var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, count_query.ptr)));
+        var rows = database.exec(count_query);
         while (rows.next()) |row_item| {
             const row = switch (row_item) {
                 // Ignore when statements are completed
@@ -170,7 +170,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         }
     }
 
-    var rows = database.exec(std.mem.spanZ(@ptrCast([*:0]const u8, query.?.ptr)));
+    var rows = database.exec(query.?);
 
     var selector: usize = 0;
     while (rows.next()) |row_item| {
