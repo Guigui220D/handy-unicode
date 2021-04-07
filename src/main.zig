@@ -13,7 +13,7 @@ pub fn main() anyerror!void {
     try stdout.writeAll(
         \\ ⚡ Welcome to Handy-Unicode Zig (huz) ⚡
         \\(If the lightning bolt character didn't render, make sure your terminal is set up for UTF-8 support)
-        //\\Write help if you need any help
+        \\Write "help" if you need any 📕
         \\
     );
 
@@ -23,11 +23,17 @@ pub fn main() anyerror!void {
     defer db.closeDb();
 
     if (!db_exists) {
-        try stdout.writeAll("Creating the db from allkeys.txt for the first time... (This could take a few minutes)\n");
+        try stdout.writeAll("Creating the db from allkeys.txt for the first time ⏳ (This could take a few minutes, do not close the program)\n");
         var timer = try std.time.Timer.start();
         try db.createTable();
         {
-            const file = try cwd.openFile("allkeys.txt", .{ .read = true });
+            const file = cwd.openFile("allkeys.txt", .{ .read = true }) catch |err| switch (err) {
+                error.FileNotFound, error.AccessDenied => {
+                    try stderr.print("Could not open allkeys.txt 😢 ({})", .{err});
+                    return;
+                },
+                else => return err,
+            };
             try db.parseFileAndFillDb(file);
         }
         try stdout.print("Done! (took {}s)\n", .{@divTrunc(timer.read(), 1_000_000_000)});
@@ -49,7 +55,7 @@ pub fn main() anyerror!void {
                     try db.setSearch(allocator, line[1..]);
                     db.runQuery(allocator) catch |err| {
                         if (err == error.UnsafeQuery) {
-                            try stderr.writeAll("Search has special characters and is unsafe at the moment. Please only use alphanum.\n");
+                            try stderr.writeAll("Search has special characters and is unsafe at the moment. Please only use alphanum 🔠🔢\n");
                         } else
                             return err;
                     };
@@ -57,18 +63,19 @@ pub fn main() anyerror!void {
                 '1'...'8' => {
                     var index: u3 = @truncate(u3, line[0] - '1');
                     db.select(allocator, index) catch |err| switch (err) {
-                        error.doesNotExist => try stderr.print("Last search page does not have a result with index {c}.\n", .{line[0]}),
+                        error.doesNotExist => try stderr.print("Last search page does not have a result with index {c} 🤔\n", .{line[0]}),
                         else => return err,
                     };
                 },
-                'a' => try db.testing.printAll(),
+                //'a' => try db.testing.printAll(),
                 'q' => break,
-                else => try stderr.writeAll("Invalid command.\n"),
+                'h' => try showHelp(),
+                else => try stderr.writeAll("Invalid command. Type \"help\" 📕\n"),
             }
         } else {
             db.runQuery(allocator) catch |err| {
                 if (err == error.noSearch) {
-                    try stderr.writeAll("No search was started!\n");
+                    try stderr.writeAll("No search was started. Write\":some words\" to start a query! 👓\n");
                 } else return err;
             };
         }
@@ -86,4 +93,37 @@ fn prompt(buffer: []u8) !?[]u8 {
 
     try stdout.writeAll("(⚡huz) > ");
     return stdin.readUntilDelimiterOrEof(buffer, '\n');
+}
+
+fn showHelp() !void {
+    const stdout = std.io.getStdOut().writer();
+
+    try stdout.writeAll(
+        \\     ⋯⋯⋯⋯⋯
+        \\ Thanks for using HandyUnicode!
+        \\ 
+        \\ If characters don't render properly, make sure your terminal is set up for utf8, and has a complete font for unicode
+        \\
+        \\ Commands:
+        \\  • ":search": Stars a new query
+        \\      Not case sensitive, and words can be out of order
+        \\      You will get a page of up to 8 results numbered. You can press enter to see the next page
+        \\      Results are sorted by use count
+        \\      You can use "my words" to have a strict order
+        \\      You can use -words to remove search results that satisfy this search term;
+        \\  • Enter: See the next page of the current query if there is one
+        \\      If you reach "no more results", you can just press again to redo the query;
+        \\  • 1-8 (a digit): Select a character among the last results
+        \\      The character will be copied to clipboard if it can, and its use count will be incremented;
+        \\  • q..: Quit the program;
+        \\  • h..: Show this menu!
+        \\
+        \\  First startup:
+        \\      The program will load the 'allkeys.txt' file (created by the unicode organization) and create the database
+        \\      If that process was interrupted, an incomplete db will exist. You need to delete it (codes.db) and restart
+        \\
+        \\  Contact: gderex8@orange.fr
+        \\     ⋯⋯⋯⋯⋯
+        \\
+    );
 }
