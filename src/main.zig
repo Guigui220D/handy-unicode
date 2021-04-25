@@ -2,8 +2,8 @@ const std = @import("std");
 const db = @import("db.zig");
 
 pub fn main() anyerror!void {
-    //try enableUtf8OnTerminal();
-    const allocator = std.heap.page_allocator;
+    var gpalloc = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = &gpalloc.allocator;
 
     const stderr = std.io.getStdErr().writer();
     const stdout = std.io.getStdOut().writer();
@@ -96,34 +96,5 @@ fn prompt(buffer: []u8) !?[]u8 {
 }
 
 fn showHelp() !void {
-    const stdout = std.io.getStdOut().writer();
-
-    try stdout.writeAll(
-        \\     ⋯⋯⋯⋯⋯
-        \\ Thanks for using HandyUnicode!
-        \\ 
-        \\ If characters don't render properly, make sure your terminal is set up for utf8, and has a complete font for unicode
-        \\
-        \\ Commands:
-        \\  • ":search": Stars a new query
-        \\      Not case sensitive, and words can be out of order
-        \\      You will get a page of up to 8 results numbered. You can press enter to see the next page
-        \\      Results are sorted by use count
-        \\      You can use "my words" to have a strict order
-        \\      You can use -words to remove search results that satisfy this search term;
-        \\  • Enter: See the next page of the current query if there is one
-        \\      If you reach "no more results", you can just press again to redo the query;
-        \\  • 1-8 (a digit): Select a character among the last results
-        \\      The character will be copied to clipboard if it can, and its use count will be incremented;
-        \\  • q..: Quit the program;
-        \\  • h..: Show this menu!
-        \\
-        \\  First startup:
-        \\      The program will load the 'allkeys.txt' file (created by the unicode organization) and create the database
-        \\      If that process was interrupted, an incomplete db will exist. You need to delete it (codes.db) and restart
-        \\
-        \\  Contact: gderex8@orange.fr
-        \\     ⋯⋯⋯⋯⋯
-        \\
-    );
+    try std.io.getStdOut().writer().writeAll(@embedFile("help.txt"));
 }
