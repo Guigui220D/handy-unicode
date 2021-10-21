@@ -1,5 +1,5 @@
      ⋯⋯⋯⋯⋯
- Thanks for using HandyUnicode!
+ Thanks for using HandyUnicode! (ver 1.0)
  
  If characters don't render properly, make sure your terminal is set up for utf8, and has a complete font for unicode
 

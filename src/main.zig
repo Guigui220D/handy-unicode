@@ -8,6 +8,8 @@ pub fn main() anyerror!void {
     const stderr = std.io.getStdErr().writer();
     const stdout = std.io.getStdOut().writer();
 
+    _ = system("chcp 65001");
+
     const cwd = std.fs.cwd(); //Current directory folder
 
     try stdout.writeAll(
@@ -97,3 +99,5 @@ fn prompt(buffer: []u8) !?[]u8 {
 fn showHelp() !void {
     try std.io.getStdOut().writer().writeAll(@embedFile("help.txt"));
 }
+
+extern fn system(command: [*c]const u8) c_int;
