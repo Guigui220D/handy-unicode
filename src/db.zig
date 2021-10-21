@@ -12,8 +12,7 @@ pub fn checkDbExists() !bool {
     //Checks if program has access to the db file/if it exists
     if (std.fs.cwd().access(db_file_name, .{ .read = true, .write = true })) {
         return true;
-    } else |err|
-        return if (err == error.FileNotFound) false else err;
+    } else |err| return if (err == error.FileNotFound) false else err;
 }
 
 pub fn openDb() !void {
@@ -75,7 +74,7 @@ pub fn parseFileAndFillDb(file: std.fs.File) !void {
         };
 
         var utf8: [16]u8 = undefined;
-        var codepoint_iterator = std.mem.tokenize(data, " ");
+        var codepoint_iterator = std.mem.tokenize(u8, data, " ");
         var i: usize = 0;
         while (codepoint_iterator.next()) |code| {
             if (std.mem.eql(u8, ";", code))
@@ -111,15 +110,13 @@ pub fn setSearch(allocator: *std.mem.Allocator, words: []u8) !void {
 }
 
 fn prepareQuery(allocator: *std.mem.Allocator) !void {
-    const stderr = std.io.getStdErr().writer();
-
     if (user_query == null)
         return error.noSearch;
 
     deallocQuery(allocator);
 
     const search = Search{ .user_query = user_query.?, .page = page, .request_type = .Characters };
-    query = try std.fmt.allocPrintZ(allocator, "{.8}", .{ search });
+    query = try std.fmt.allocPrintZ(allocator, "{.8}", .{search});
 
     if (Search.has_error)
         return error.UnsafeQuery;
@@ -138,7 +135,6 @@ pub fn deallocSearch(allocator: *std.mem.Allocator) void {
 }
 
 pub fn runQuery(allocator: *std.mem.Allocator) !void {
-    const stderr = std.io.getStdErr().writer();
     const stdout = std.io.getStdOut().writer();
 
     try prepareQuery(allocator);
@@ -147,7 +143,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         const search = Search{ .user_query = user_query.?, .page = 0, .request_type = .Count };
         std.debug.assert(!Search.has_error);
 
-        const count_query = try std.fmt.allocPrintZ(allocator, "{.0}", .{ search });
+        const count_query = try std.fmt.allocPrintZ(allocator, "{.0}", .{search});
         defer allocator.free(count_query);
 
         var rows = database.exec(count_query);
@@ -165,8 +161,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
             const count = row.columnInt(0);
             if (count == 0) {
                 try stdout.print(" - Query prepared, got no results 😕 -\n", .{});
-            } else
-                try stdout.print(" - Query prepared 🔍, got {} result(s)! ({} page(s) 📃) -\n", .{ count, @divFloor(count, 8) + 1 });
+            } else try stdout.print(" - Query prepared 🔍, got {} result(s)! ({} page(s) 📃) -\n", .{ count, @divFloor(count, 8) + 1 });
         }
     }
 
@@ -212,8 +207,7 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         if (page != 0) {
             std.debug.warn("No more results!\n", .{});
             page = 0;
-        } else
-            std.debug.warn("Nothing found.\n", .{});
+        } else std.debug.warn("Nothing found.\n", .{});
     } else {
         page += 1;
     }
@@ -228,7 +222,7 @@ pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
         var found = false;
         var ans = try database.execBind("UPDATE chars SET times_used = times_used + 1 WHERE id == ?;", .{id});
         while (ans.next()) |t| {
-            const row = switch (t) {
+            _ = switch (t) {
                 .Error => |e| {
                     std.debug.warn("sqlite3 errmsg: {s}\n", .{database.errmsg()});
                     return e;
@@ -261,8 +255,7 @@ pub fn select(allocator: *std.mem.Allocator, index: u3) !void {
         } else |err| {
             if (err == error.ClipboardNotAvailable) {
                 try stderr.writeAll("Clipboard copy not available on this platform :/\n");
-            } else
-                return err;
+            } else return err;
         }
 
         allocator.free(utf8);

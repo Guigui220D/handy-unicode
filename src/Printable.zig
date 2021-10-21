@@ -6,6 +6,8 @@ pub fn format(
     options: std.fmt.FormatOptions,
     writer: anytype,
 ) !void {
+    _ = options;
+    _ = fmt;
     if (self.utf8.len == 1 and std.ascii.isCntrl(self.utf8[0])) {
         var ch = self.utf8[0];
         if (ch == 0x7f)

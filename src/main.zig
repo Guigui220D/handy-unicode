@@ -56,8 +56,7 @@ pub fn main() anyerror!void {
                     db.runQuery(allocator) catch |err| {
                         if (err == error.UnsafeQuery) {
                             try stderr.writeAll("Search has special characters and is unsafe at the moment. Please only use alphanum 🔠🔢\n");
-                        } else
-                            return err;
+                        } else return err;
                     };
                 },
                 '1'...'8' => {

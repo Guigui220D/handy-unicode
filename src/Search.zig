@@ -7,6 +7,8 @@ pub fn format(
     options: std.fmt.FormatOptions,
     writer: anytype,
 ) !void {
+    _ = options;
+    _ = fmt;
     try writer.writeAll(switch (self.request_type) {
         .Characters => "SELECT utf8, name, times_used, id",
         .Count => "SELECT COUNT(*)",
@@ -15,7 +17,7 @@ pub fn format(
     try writer.writeAll("\nFROM chars\n");
 
     var rest = self.user_query;
-    var tokens = std.mem.tokenize(rest, " ");
+    var tokens = std.mem.tokenize(u8, rest, " ");
 
     var first = true;
     while (tokens.next()) |word| : (rest = tokens.rest()) {
@@ -35,22 +37,24 @@ pub fn format(
             kept = for (rest) |c, i| {
                 if (c == '"') {
                     const quoted = rest[0..i];
-                    tokens = std.mem.tokenize(rest[(i + 1)..], " ");
+                    tokens = std.mem.tokenize(u8, rest[(i + 1)..], " ");
                     break quoted;
                 }
             } else blk: {
-                tokens = std.mem.tokenize("", " ");
+                tokens = std.mem.tokenize(u8, "", " ");
                 break :blk rest;
             };
         }
 
         has_error = false;
-        utils.checkQueryWord(kept) catch { has_error = true; return; };
+        utils.checkQueryWord(kept) catch {
+            has_error = true;
+            return;
+        };
 
         if (first) {
             try writer.writeAll("WHERE ");
-        } else
-            try writer.writeAll("AND ");
+        } else try writer.writeAll("AND ");
 
         try writer.writeAll("name ");
 
@@ -75,6 +79,4 @@ pub var has_error = false;
 
 user_query: []const u8,
 page: usize,
-request_type: enum {
-    Characters, Count
-}
+request_type: enum { Characters, Count }

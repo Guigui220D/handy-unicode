@@ -1,5 +1,6 @@
 NUL
 zig-cache/
+zig-out/
 sqlite-c/
 *.dll
 *.db
