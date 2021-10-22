@@ -139,6 +139,8 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
 
     try prepareQuery(allocator);
 
+    var page_count: i32 = 0;
+
     if (page == 0) {
         const search = Search{ .user_query = user_query.?, .page = 0, .request_type = .Count };
         std.debug.assert(!Search.has_error);
@@ -159,9 +161,10 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
             };
 
             const count = row.columnInt(0);
+            page_count = @divFloor(count, 8) + 1;
             if (count == 0) {
                 try stdout.print(" - Query prepared, got no results 😕 -\n", .{});
-            } else try stdout.print(" - Query prepared 🔍, got {} result(s)! ({} page(s) 📃) -\n", .{ count, @divFloor(count, 8) + 1 });
+            } else try stdout.print(" - Query prepared 🔍, got {} result(s)! ({} page(s) 📃) -\n", .{ count, page_count });
         }
     }
 
@@ -190,9 +193,9 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         const printable = Printable{ .utf8 = utf8, .id = id };
         const circled_digit = utils.circledDigit(@truncate(u3, selector));
         if (used != 0) {
-            try stdout.print("  {s} - {} : {s} (used {} times)\n", .{ circled_digit, printable, name, used });
+            try stdout.print("  {s}- {} : {s} (used {} times)\n", .{ circled_digit, printable, name, used });
         } else {
-            try stdout.print("  {s} - {} : {s} (never used)\n", .{ circled_digit, printable, name });
+            try stdout.print("  {s}- {} : {s} (never used)\n", .{ circled_digit, printable, name });
         }
 
         std.debug.assert(selector < 8);
@@ -210,6 +213,10 @@ pub fn runQuery(allocator: *std.mem.Allocator) !void {
         } else std.debug.warn("Nothing found.\n", .{});
     } else {
         page += 1;
+        try stdout.writeAll("Type number to copy symbol");
+        if (page == 1 and page_count > 1)
+            try stdout.writeAll(", enter to go to next page");
+        try stdout.writeAll(".\n");
     }
 }
 

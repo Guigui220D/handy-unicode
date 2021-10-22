@@ -8,7 +8,8 @@ pub fn main() anyerror!void {
     const stderr = std.io.getStdErr().writer();
     const stdout = std.io.getStdOut().writer();
 
-    _ = system("chcp 65001");
+    if (@import("builtin").os.tag == .windows)
+        _ = system("chcp 65001");
 
     const cwd = std.fs.cwd(); //Current directory folder
 

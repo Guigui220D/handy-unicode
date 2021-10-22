@@ -8,7 +8,7 @@ A command line tool for searching and copying unicode characters to the clipboar
 
 Your terminal must be set up for utf8 support!
 
-- `:a search` : Search unicode characters using their description (and later user notes). Words are not necessarily in order. Words starting with - are excluded.
+- `:keyword` : Queries the keyword. Place in quotes to query exact string. Use "-keyword" to exclude words. Ex: :"greek small letter" -sigma
 - `1` or any number 1-8 : Select and copy a character from the last query to clipboard.
 - enter : Open next page of last query.
 - `q` : Quit the program.
